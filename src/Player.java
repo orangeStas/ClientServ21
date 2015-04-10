@@ -11,11 +11,9 @@ import java.io.ObjectOutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 
-public class Player extends JFrame 
+public class Player extends JFrame implements Runnable
 {
-	private JButton Hit;
-	private JButton Stay;
-	private JPanel buttons;
+    private JPanel buttons;
 	private JTextArea displayArea;
 	private ObjectOutputStream output;
 	private ObjectInputStream input;
@@ -23,84 +21,97 @@ public class Player extends JFrame
 	private String chatServer;
 	private Socket client;
 	private int cardamt=0;
-	// initialize chatServer and set up GUI
-	public Player( String host )
-	{
-		super( "Player" );
 
+    private int countCards;
+
+    private final String cardPath = "images/cards";
+
+	public Player(String host)
+	{
+		super("Player");
+
+        getContentPane().setBackground(new Color(11, 165, 0));
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        setLayout(new FlowLayout());
 		chatServer = host; // set server to which this client connects
 
 		buttons = new JPanel();
 		buttons.setLayout(new GridLayout(1,2));
-		Hit = new JButton("Hit");
-		Stay = new JButton("Stay");
+        JButton hitButt = new JButton("Hit");
+        JButton stayButton = new JButton("Stay");
 		
-		Hit.addActionListener(
-				new ActionListener() 
-				{
-					// send message to server
-					public void actionPerformed( ActionEvent event )
-					{
-						sendData( "hit" );
-					} // end method actionPerformed
-				}
-				);
+		hitButt.addActionListener(
+                new ActionListener() {
+                    // send message to server
+                    public void actionPerformed(ActionEvent event) {
+                        sendData("hit");
+                    } // end method actionPerformed
+                }
+        );
 		
-		Stay.addActionListener(
-				new ActionListener() 
-				{
-					// send message to server
-					public void actionPerformed( ActionEvent event )
-					{
-						sendData( "stay" );
-					}
-				}
-				);
+		stayButton.addActionListener(
+                new ActionListener() {
+                    // send message to server
+                    public void actionPerformed(ActionEvent event) {
+                        sendData("stay");
+                    }
+                }
+        );
 
-		buttons.add(Hit, BorderLayout.SOUTH);
-		buttons.add(Stay, BorderLayout.SOUTH);
+		buttons.add(hitButt);
+		buttons.add(stayButton);
 		buttons.setVisible(true);
-		add(buttons,BorderLayout.SOUTH);
+		add(buttons);
 		displayArea = new JTextArea();
-		add( new JScrollPane( displayArea ), BorderLayout.CENTER );
+        displayArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(displayArea);
+		scrollPane.setPreferredSize(new Dimension(200,140));
+        add(scrollPane);
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        int sizeWidth = 350;
+        int sizeHeight = 200;
+        int locationX = (screenSize.width - sizeWidth) / 2;
+        int locationY = (screenSize.height - sizeHeight) / 2;
+        setBounds(locationX, locationY, sizeWidth, sizeHeight);
+        //setSize(350, 200);
+        //pack();
 
-		setSize( 300, 300 );
 		setVisible( true );
+
+        countCards = 0;
 	}
 
-	// connect to server and process messages from server
-	public void runClient() 
-	{
-		try // connect to server, get streams, process connection
-		{
-			connectToServer(); // create a Socket to make connection
-			getStreams(); // get the input and output streams
-			processConnection();
-		}
-		catch ( EOFException eofException ) 
-		{
-			displayMessage( "\nClient terminated connection" );
-		}
-		catch ( IOException ioException ) 
-		{}
-		finally 
-		{
-			closeConnection(); // close connection
-		}
-	}
+
+    @Override
+    public void run() {
+        try
+        {
+            connectToServer();
+            getStreams();
+            processConnection();
+        }
+        catch ( EOFException eofException )
+        {
+            displayMessage( "\nClient terminated connection" );
+        }
+        catch ( IOException ioException )
+        {}
+        finally
+        {
+            closeConnection();
+        }
+    }
 
 	// connect to server
 	private void connectToServer() throws IOException
 	{      
 		displayMessage( "Attempting connection\n" );
 
-		// create Socket to make connection to server
 		client = new Socket( InetAddress.getByName( chatServer ), 23555 );
 
-		// display connection information
-		displayMessage( "Connected to: " + 
-				client.getInetAddress().getHostName() );
-	} // end method connectToServer
+		displayMessage( "Connected to: " + client.getInetAddress().getHostName() );
+	}
 
 	// get streams to send and receive data
 	private void getStreams() throws IOException
@@ -118,17 +129,29 @@ public class Player extends JFrame
 
 	private void processConnection() throws IOException
 	{
-
-
-		do // process messages sent from server
+		do
 		{ 
-			try // read message and display it
+			try
 			{
 				message = ( String ) input.readObject(); // read new message
 				displayMessage( "\n" + message ); // display message
-				if (message.contains("Bust!") || message.contains("Please Wait")){
-					buttons.setVisible(false);				
+				if (message.contains("Bust!")){
+                    JOptionPane.showMessageDialog(this, "Busted!!!", "Info", JOptionPane.ERROR_MESSAGE);
 				}
+                else if (message.contains("Win")){
+                    printResults("Win!!!");
+                }
+                else if (message.contains("Lose")){
+                    printResults("Lose!");
+                }
+                else if (message.contains("Tie")){
+                    printResults("Tie!");
+                }
+                try {
+                    drawCards(message);
+                } catch (Exception e){
+                    e.printStackTrace();
+                }
 				
 			}
 			catch ( ClassNotFoundException classNotFoundException ) 
@@ -139,12 +162,52 @@ public class Player extends JFrame
 		} while ( !message.equals( "SERVER>>> TERMINATE" ) );
 	}
 
+    private void printResults(String string){
+        buttons.setVisible(false);
+        setSize(getSize().width - 120, getSize().height);
+        if (!string.isEmpty()){
+            JOptionPane.showMessageDialog(this, string, "Info",JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void drawCards(String message){
+        String[] tokens = message.split(" ");
+        if (tokens.length == 7){
+            ImageIcon imageIcon = new ImageIcon(startForm.class.getResource(cardPath + "/" + tokens[3] + "of" + tokens[4] + "s" +".png"));
+            add(new JLabel(imageIcon));
+
+            imageIcon = new ImageIcon(startForm.class.getResource(cardPath + "/" + tokens[5] + "of" + tokens[6] + "s" +".png"));
+            add(new JLabel(imageIcon));
+
+            countCards += 2;
+
+            setSize(getSize().width + 160, getSize().height);
+            getContentPane().revalidate();
+            getContentPane().repaint();
+        }
+        else if (tokens.length == 2) {
+            ImageIcon imageIcon = new ImageIcon(startForm.class.getResource(cardPath + "/" + tokens[0] + "of" + tokens[1] + "s" +".png"));
+            add(new JLabel(imageIcon));
+
+            countCards++;
+
+            setSize(getSize().width + 80, getSize().height);
+            getContentPane().revalidate();
+            getContentPane().repaint();
+        }
+        else
+        {
+            getContentPane().revalidate();
+            getContentPane().repaint();
+        }
+        //pack();
+        //revalidate();
+        //repaint();
+    }
 
 	private void closeConnection() 
 	{
 		displayMessage( "\nClosing connection" );
-		
-
 		try 
 		{
 			output.close();
@@ -152,7 +215,9 @@ public class Player extends JFrame
 			client.close();
 		} // end try
 		catch ( IOException ioException ) 
-		{}
+		{
+            ioException.printStackTrace();
+        }
 	}
 
 
@@ -184,7 +249,5 @@ public class Player extends JFrame
 	}
 
 
-	
 
-	
 }
